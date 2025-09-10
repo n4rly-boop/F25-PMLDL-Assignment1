@@ -1,0 +1,8 @@
+dvc
+mlflow
+fastapi[standard]
+streamlit
+pandas
+numpy
+docker
+torch
