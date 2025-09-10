@@ -1,0 +1,6 @@
+.env
+.venv
+.DS_Store
+.vscode
+.pytest_cache
+PMLDL Assignment*
