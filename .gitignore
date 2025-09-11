@@ -5,3 +5,5 @@
 .pytest_cache
 PMLDL Assignment*
 dvcstore/
+__pycache__/
+mlruns/
