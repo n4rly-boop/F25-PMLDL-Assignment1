@@ -14,5 +14,17 @@ services:
     volumes:
       - ../../models:/app/models:ro
     restart: unless-stopped
-
+  app:
+    build:
+      context: ../..
+      dockerfile: code/deployment/app/Dockerfile
+    image: animals10-app:latest
+    container_name: animals10-app
+    ports:
+      - "3000:3000"
+    environment:
+      - API_URL=http://api:8000
+    depends_on:
+      - api
+    restart: unless-stopped
 
