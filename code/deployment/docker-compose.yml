@@ -1,0 +1,18 @@
+version: '3.9'
+
+services:
+  api:
+    build:
+      context: ../..
+      dockerfile: code/deployment/api/Dockerfile
+    image: animals10-api:latest
+    container_name: animals10-api
+    ports:
+      - "8000:8000"
+    environment:
+      - MODEL_PATH=/app/models/model.pth
+    volumes:
+      - ../../models:/app/models:ro
+    restart: unless-stopped
+
+
