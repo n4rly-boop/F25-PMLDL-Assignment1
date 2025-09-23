@@ -27,43 +27,24 @@ jobs:
           fi
           echo "Model present."
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Build API image
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          file: code/deployment/api/Dockerfile
-          push: false
-          tags: animals10-api:validate
-
-      - name: Build App image
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          file: code/deployment/app/Dockerfile
-          push: false
-          tags: animals10-app:validate
-
-      - name: Launch services with compose
+      - name: Start API
+        env:
+          MODEL_PATH: ${{ github.workspace }}/models/model.pth
         run: |
-          cd code/deployment
-          export PROJECT_ROOT="${{ github.workspace }}"
-          docker compose up -d --build api app
+          nohup python -m uvicorn code.deployment.api.model:app --host 127.0.0.1 --port 8000 >/tmp/api.log 2>&1 & echo $! > /tmp/api.pid
 
       - name: Wait for API
         run: |
           for i in {1..30}; do
-            if curl -sf http://localhost:8000/health >/dev/null; then echo OK; exit 0; fi; sleep 2; done; exit 1
+            if curl -sf http://127.0.0.1:8000/health >/dev/null; then echo OK; exit 0; fi; sleep 2; done; cat /tmp/api.log; exit 1
 
       - name: Check API labels
         run: |
-          curl -sf http://localhost:8000/labels | jq . | sed -e 's/.*/&/'
+          curl -sf http://127.0.0.1:8000/labels | jq . | sed -e 's/.*/&/'
 
-      - name: Stop services
+      - name: Stop API
         if: always()
         run: |
-          cd code/deployment && docker compose down -v
+          kill $(cat /tmp/api.pid) 2>/dev/null || true
 
 
