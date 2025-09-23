@@ -1,9 +1,10 @@
+import json
 import mlflow
 import torch
 import sys
 import os
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
-from datasets.process_data import split_data, load_data, get_transform, size
+from datasets.process_data import load_data, get_transform, size
 import torch.nn as nn
 from sklearn.metrics import precision_score, recall_score, f1_score
 import torch.optim as optim
@@ -119,25 +120,47 @@ def load_model(path):
     return model
 
 def main():
-    dataset = load_data("data/animals10/raw-img", get_transform())
-    train_dataset, test_dataset = split_data(dataset, 0.8)
-    train_loader = DataLoader(train_dataset, batch_size=32, shuffle=True)
-    test_loader = DataLoader(test_dataset, batch_size=32, shuffle=True)
+    # Prefer processed split if available; fall back to raw split-on-the-fly
+    processed_train = os.path.join("data", "processed", "train")
+    processed_test = os.path.join("data", "processed", "test")
 
-    device = torch.device("cuda" if torch.cuda.is_available() else "mps")
-    #model = load_model("models/model.pth")
-    model = None
+    if os.path.isdir(processed_train) and os.path.isdir(processed_test):
+        train_dataset = load_data(processed_train, get_transform())
+        test_dataset = load_data(processed_test, get_transform())
+    else:
+        print("Error: processed split not found")
+        exit(1)
+
+    # Persist labels for API/app consistency
+    labels_path = os.path.join("models", "labels.json")
+    os.makedirs(os.path.dirname(labels_path), exist_ok=True)
+    labels = getattr(train_dataset, "dataset", train_dataset).classes if hasattr(train_dataset, "dataset") else train_dataset.classes
+    with open(labels_path, "w", encoding="utf-8") as f:
+        json.dump(labels, f, ensure_ascii=False, indent=2)
+
+    train_loader = DataLoader(train_dataset, batch_size=32, shuffle=True)
+    test_loader = DataLoader(test_dataset, batch_size=32, shuffle=False)
+
+    # Device selection: prefer CUDA, then MPS, else CPU
+    if torch.cuda.is_available():
+        device = torch.device("cuda")
+    elif torch.backends.mps.is_available():
+        device = torch.device("mps")
+    else:
+        device = torch.device("cpu")
+
+    model = CNN(input_dim=size)
+    model.to(device)
     criterion = nn.CrossEntropyLoss()
-    if model is None:
-        model = CNN(input_dim=size)
-        model.to(device)
-        optimizer = optim.Adam(model.parameters(), lr=0.001)
-        epochs = 20
-        train_model(model, epochs, train_loader, criterion, optimizer, device)
+    optimizer = optim.Adam(model.parameters(), lr=0.001)
+    epochs = 20
+
+    train_model(model, epochs, train_loader, criterion, optimizer, device)
     evaluate_model(model, test_loader, criterion, device)
+
     save_model(model, "models/model.pth")
     mlflow.pytorch.log_model(model, "model")
-   
+
     print(model)
 
 if __name__ == "__main__":

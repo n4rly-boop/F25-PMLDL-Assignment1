@@ -24,11 +24,6 @@ def save_data(dataset, path):
 
 def load_data(path, transform=None):
     dataset = datasets.ImageFolder(root=path, transform=transform)
-
-    translated_classes = [translate[class_name] for class_name in dataset.classes]
-    dataset.classes = translated_classes
-    dataset.class_to_idx = {class_name: idx for idx, class_name in enumerate(translated_classes)}
-
     return dataset
 
 def split_data(dataset, threshold):
