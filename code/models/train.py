@@ -5,6 +5,7 @@ import torch
 import sys
 import os
 import shutil
+import random
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 from datasets.process_data import load_data, get_transform, size
 import torch.nn as nn
@@ -141,8 +142,28 @@ def main():
     with open(labels_path, "w", encoding="utf-8") as f:
         json.dump(labels, f, ensure_ascii=False, indent=2)
 
-    train_loader = DataLoader(train_dataset, batch_size=32, shuffle=True)
-    test_loader = DataLoader(test_dataset, batch_size=32, shuffle=False)
+    # CI overrides
+    batch_size = int(os.environ.get("BATCH_SIZE", "32"))
+    train_max = os.environ.get("TRAIN_MAX_SAMPLES")
+    test_max = os.environ.get("TEST_MAX_SAMPLES")
+
+    if train_max is not None:
+        try:
+            n = min(int(train_max), len(train_dataset))
+            indices = random.sample(range(len(train_dataset)), n)
+            train_dataset = torch.utils.data.Subset(train_dataset, indices)
+        except Exception:
+            pass
+    if test_max is not None:
+        try:
+            n = min(int(test_max), len(test_dataset))
+            indices = random.sample(range(len(test_dataset)), n)
+            test_dataset = torch.utils.data.Subset(test_dataset, indices)
+        except Exception:
+            pass
+
+    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
+    test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
 
     # Device selection: prefer CUDA, then MPS, else CPU
     if torch.cuda.is_available():
@@ -156,7 +177,7 @@ def main():
     model.to(device)
     criterion = nn.CrossEntropyLoss()
     optimizer = optim.Adam(model.parameters(), lr=0.001)
-    epochs = 20
+    epochs = int(os.environ.get("EPOCHS", "20"))
     comparing_metric = "val_f1_score"
 
     train_model(model, epochs, train_loader, criterion, optimizer, device)
