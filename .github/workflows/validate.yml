@@ -1,0 +1,60 @@
+name: Validate on Push
+
+on:
+  push:
+    branches: ["**"]
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      PROJECT_ROOT: ${{ github.workspace }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r code/deployment/api/requirements.txt
+
+      - name: Ensure tools
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y jq
+
+      - name: Check model exists
+        run: |
+          if [ ! -f models/model.pth ]; then
+            echo "models/model.pth is missing. Train locally or via the pipeline before pushing." >&2
+            exit 1
+          fi
+          echo "Model present."
+
+      - name: Start API
+        env:
+          MODEL_PATH: ${{ github.workspace }}/models/model.pth
+        run: |
+          nohup python -m uvicorn code.deployment.api.model:app --host 127.0.0.1 --port 8000 >/tmp/api.log 2>&1 & echo $! > /tmp/api.pid
+
+      - name: Wait for API
+        run: |
+          for i in {1..30}; do
+            if curl -sf http://127.0.0.1:8000/health >/dev/null; then echo OK; exit 0; fi; sleep 2; done; cat /tmp/api.log; exit 1
+
+      - name: Check API labels
+        run: |
+          curl -sf http://127.0.0.1:8000/labels | jq . | sed -e 's/.*/&/'
+
+      - name: Stop API
+        if: always()
+        run: |
+          kill $(cat /tmp/api.pid) 2>/dev/null || true
+
+

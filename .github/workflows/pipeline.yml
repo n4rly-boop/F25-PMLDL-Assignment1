@@ -1,0 +1,81 @@
+name: MLOps Pipeline
+
+on:
+  workflow_dispatch: {}
+
+jobs:
+  build-train-deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      PROJECT_ROOT: ${{ github.workspace }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install Python deps for data/train
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r code/deployment/api/requirements.txt
+
+      - name: Prepare processed data
+        run: |
+          python code/datasets/process_data.py --raw data/animals10/raw-img --out data/processed --train 0.8
+
+      - name: Train model (fast CI)
+        env:
+          EPOCHS: '1'
+          TRAIN_MAX_SAMPLES: '200'
+          TEST_MAX_SAMPLES: '200'
+        run: |
+          python code/models/train.py
+
+      - name: Show metrics
+        run: |
+          test -f models/metrics.json && cat models/metrics.json || echo 'metrics.json not found'
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build API image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: code/deployment/api/Dockerfile
+          push: false
+          tags: animals10-api:ci
+
+      - name: Build App image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: code/deployment/app/Dockerfile
+          push: false
+          tags: animals10-app:ci
+
+      - name: Launch services with compose
+        run: |
+          cd code/deployment
+          export PROJECT_ROOT="${{ github.workspace }}"
+          docker compose up -d --build api app
+
+      - name: Wait for API
+        run: |
+          for i in {1..30}; do
+            if curl -sf http://localhost:8000/health >/dev/null; then echo OK; exit 0; fi; sleep 2; done; exit 1
+
+      - name: Check API labels
+        run: |
+          curl -sf http://localhost:8000/labels | jq . | sed -e 's/.*/&/'
+
+      - name: Stop services
+        if: always()
+        run: |
+          cd code/deployment && docker compose down -v
+
+
