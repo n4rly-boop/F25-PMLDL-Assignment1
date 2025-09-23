@@ -7,3 +7,4 @@ PMLDL Assignment*
 dvcstore/
 __pycache__/
 mlruns/
+data/processed/
