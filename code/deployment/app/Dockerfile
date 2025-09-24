@@ -14,6 +14,6 @@ ENV API_URL=http://api:8000
 
 EXPOSE 3000
 
-CMD ["streamlit", "run", "code/deployment/app/app.py", "--server.port=8501", "--server.address=0.0.0.0"]
+CMD ["streamlit", "run", "code/deployment/app/app.py", "--server.port=3000", "--server.address=0.0.0.0"]
 
 
