@@ -9,7 +9,7 @@ from PIL import Image
 import torch
 import torch.nn.functional as F
 import torchvision.transforms as transforms
-
+import json
 
 # Ensure project modules are importable
 CURRENT_DIR = os.path.dirname(__file__)
@@ -19,24 +19,11 @@ if CODE_DIR not in sys.path:
     sys.path.append(CODE_DIR)
 
 # Import model definition and image size from training code
-from models.train import CNN  # noqa: E402
-from datasets.process_data import size  # noqa: E402
+from models.train import CNN
+from datasets.process_data import size
 
-
-# Labels used during training (derived from Italian folder names order, translated to English)
-CLASS_LABELS: List[str] = [
-    "dog",
-    "horse",
-    "elephant",
-    "butterfly",
-    "chicken",
-    "cat",
-    "cow",
-    "sheep",
-    "spider",
-    "squirrel",
-]
-
+# Labels used during training
+CLASS_LABELS: List[str] = json.load(open("models/labels.json"))
 
 def get_inference_transform() -> transforms.Compose:
     return transforms.Compose([
